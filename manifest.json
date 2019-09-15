@@ -1,0 +1,12 @@
+{
+    "name": "Cemu plugin",
+    "platform": "nwiiu",
+    "guid": "1023214b-fd5d-45fd-9671-c080e92b03bb",
+    "version": "0.1",
+    "description": "Cemu plugin",
+    "author": "Leonard",
+    "email": "fiedrowicz.leonard@gmail.com",
+    "url": "",
+    "update_url": "",
+    "script": "plugin.py"
+}
