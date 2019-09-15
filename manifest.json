@@ -6,7 +6,7 @@
     "description": "Cemu plugin",
     "author": "Leonard",
     "email": "fiedrowicz.leonard@gmail.com",
-    "url": "",
+    "url": "https://github.com/LeonardFiedrowicz/galaxy-integration-cemu",
     "update_url": "",
     "script": "plugin.py"
 }
