@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from urllib.parse import parse_qs, urlparse
 
 from galaxy.api.plugin import Plugin, create_and_run_plugin
-from galaxy.api.types import Game, LicenseInfo, LicenseType, Authentication, LocalGame, NextStep
+from galaxy.api.types import Game, LicenseInfo, LicenseType, Authentication, LocalGame, NextStep, GameTime
 from galaxy.api.consts import Platform, LocalGameState
 
 # Manually override if you dare
@@ -143,17 +143,19 @@ class CemuPlugin(Plugin):
     def __init__(self, reader, writer, token):
         super().__init__(
             Platform.NintendoWiiU,  # Choose platform from available list
-            "0.1",  # Version
+            "0.2",  # Version
             reader,
             writer,
             token
         )
         self.games = []
+        self.game_times = {}
         self.server = AuthenticationServer()
         self.server.start()
 
     def parse_games(self):
         self.games = get_games(roms_path)
+        self.game_times = get_game_times()
 
     def shutdown(self):
         self.server.httpd.shutdown()
@@ -213,7 +215,6 @@ class CemuPlugin(Plugin):
             license_info = LicenseInfo(LicenseType.OtherUserLicense, None)
             owned_games.append(Game(game_id=game.program_id, game_title=game.game_title, dlcs=None,
                         license_info=license_info))
-
         return owned_games
 
     async def get_local_games(self):
@@ -223,6 +224,14 @@ class CemuPlugin(Plugin):
             local_games.append(local_game)
         return local_games
 
+
+    async def get_game_time(self, game_id, context = None):
+        import logging
+        #logging.debug("Updating Playtime...\n\n\n")
+        #logging.debug(str(self.game_times))
+        game_time = self.game_times[game_id]
+        return GameTime(game_id, game_time[0], game_time[1])
+        
 
 @dataclass
 class NUSGame():
@@ -241,11 +250,11 @@ def probe_game(path):
         return None
     # Check if English title is valid
     title = root.find("longname_en").text
-    if len(title) < 0:
-        logging.debug("No English title for" +  path + "- using Japanese")
+    if len(title) == 0:
+        #logging.debug("No English title for" +  path + "- using Japanese")
         title = root.find("longname_ja").text
     program_id = root.find("title_id").text
-    logging.debug(path + "=" + title + "(" +  program_id + ")")
+    #logging.debug(path + "=" + title + "(" +  program_id + ")")
     return NUSGame(program_id=program_id, game_title=title, path=path)
 
 
@@ -267,8 +276,28 @@ def get_games(path):
         if game is not None:
             games.append(game)
     return games
+    
 
-
+def get_game_times():
+        import logging
+        from xml.etree import ElementTree as ET
+        from os.path import exists
+        game_times = {}
+        if exists(emulator_path + "./settings.xml"):
+            root = ET.parse(emulator_path + "./settings.xml").getroot()
+        else:
+            return
+        #logging.debug("Extracting play time for games...")
+        for game in root.find("GameCache"):
+            #logging.debug(str(game))
+            title_id = str(hex(int(game.find("title_id").text)).split('x')[-1]).rjust(16,'0').upper()
+            time_played = int(game.find("time_played").text)//60
+            last_time_played = int(game.find("last_played").text)
+            game_times[title_id] = [time_played, last_time_played]
+            #logging.debug("Title ID = {}, Time Played = {}, Last Time Played = {}".format(title_id, time_played, last_time_played))
+        return game_times
+        
+        
 def main():
     create_and_run_plugin(CemuPlugin, sys.argv)
 
