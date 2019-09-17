@@ -5,10 +5,9 @@ Requires Cemu to be installed. This implementation is a modification of the [Cit
 ## Features
 
 * Library: Wii U games (in decrypted NUS format with code, content and meta folder, not .wud or .wux) in your ROM folder
-* Library: Imports your playtime and last time played for games from Cemu
+* Library: Imports your playtime and last time played for games (imported from Cemu)
 * Launch: Launches games with Cemu in Fullscreen
 
-Supports launching games (only NUS format supported, i.e. a folder with a code, content and meta folder) and tracking playtime (updated on startup).
 ## Installation
 
 Download the latest release and extract it to:
