@@ -226,11 +226,9 @@ class CemuPlugin(Plugin):
 
 
     async def get_game_time(self, game_id, context = None):
-        import logging
-        #logging.debug("Updating Playtime...\n\n\n")
-        #logging.debug(str(self.game_times))
-        game_time = self.game_times[game_id]
-        return GameTime(game_id, game_time[0], game_time[1])
+        if game_id in self.game_times:
+            game_time = self.game_times[game_id]
+            return GameTime(game_id, game_time[0], game_time[1])
         
 
 @dataclass
@@ -247,6 +245,10 @@ def probe_game(path):
     if exists(path + "/meta/meta.xml"):
         root = ET.parse(path + "/meta/meta.xml").getroot()
     else:
+        return None
+    if int(root.find("title_version").text) != 0:    #filter out updates
+        return None
+    if root.find("product_code").text.startswith("WUP-M"): #filter out dlc
         return None
     # Check if English title is valid
     title = root.find("longname_en").text
@@ -290,7 +292,7 @@ def get_game_times():
         #logging.debug("Extracting play time for games...")
         for game in root.find("GameCache"):
             #logging.debug(str(game))
-            title_id = str(hex(int(game.find("title_id").text)).split('x')[-1]).rjust(16,'0').upper()
+            title_id = str(hex(int(game.find("title_id").text)).split('x')[-1]).rjust(16,'0').upper()         #convert to hex, remove 0x, add padding
             time_played = int(game.find("time_played").text)//60
             last_time_played = int(game.find("last_played").text)
             game_times[title_id] = [time_played, last_time_played]
