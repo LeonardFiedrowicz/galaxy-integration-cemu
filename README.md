@@ -17,6 +17,12 @@ Download the latest release and extract it to:
 i.e 
 `C:\Users\Leonard\AppData\Local\GOG.com\Galaxy\plugins\installed\galaxy-integration-cemu`
 
+## Issues
+
+- might show updates as well as the base game if they are in the same folder
+- only updates playtime on startup
+- Cemu doesn't track playtime when the games are not launched from cemu's library view
+
 ## License
 
 Apache-2.0
