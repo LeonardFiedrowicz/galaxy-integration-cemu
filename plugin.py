@@ -3,6 +3,7 @@ import sys
 import subprocess
 import struct
 import threading
+import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from os import listdir, environ
@@ -11,9 +12,12 @@ from dataclasses import dataclass
 
 from urllib.parse import parse_qs, urlparse
 
-from galaxy.api.plugin import Plugin, create_and_run_plugin
+from galaxy.api.plugin import Plugin, create_and_run_plugin 
 from galaxy.api.types import Game, LicenseInfo, LicenseType, Authentication, LocalGame, NextStep, GameTime
 from galaxy.api.consts import Platform, LocalGameState
+
+
+
 
 # Manually override if you dare
 roms_path = ""
@@ -150,8 +154,11 @@ class CemuPlugin(Plugin):
         )
         self.games = []
         self.game_times = {}
+##        self.running_games = []
         self.server = AuthenticationServer()
         self.server.start()
+        
+
 
     def parse_games(self):
         self.games = get_games(roms_path)
@@ -159,6 +166,7 @@ class CemuPlugin(Plugin):
 
     def shutdown(self):
         self.server.httpd.shutdown()
+
 
     async def launch_game(self, game_id):
         from os.path import join,abspath
@@ -171,9 +179,13 @@ class CemuPlugin(Plugin):
                         game_path = abspath(join(game.path + "/code",f))
                         break
                 chdir(emulator_path)
+                logging.debug("Launching game")
                 subprocess.Popen(["./cemu.exe","-f", "-g", game_path])
                 break
+##        if game_id not in self.running_games:
+##            self.running_games.append(game_id)
         return
+
 
     def finish_login(self):
         some_dict = dict()
@@ -182,6 +194,8 @@ class CemuPlugin(Plugin):
         self.store_credentials(some_dict)
 
         self.parse_games()
+##        thread = UpdateGameTimeThread(self)
+##        thread.start()
         return Authentication(user_id="a_high_quality_cemu_user", user_name=roms_path)
 
     # implement methods
@@ -229,7 +243,7 @@ class CemuPlugin(Plugin):
         if game_id in self.game_times:
             game_time = self.game_times[game_id]
             return GameTime(game_id, game_time[0], game_time[1])
-        
+
 
 @dataclass
 class NUSGame():
@@ -246,8 +260,8 @@ def probe_game(path):
         root = ET.parse(path + "/meta/meta.xml").getroot()
     else:
         return None
-    if int(root.find("title_version").text) != 0:    #filter out updates
-        return None
+    #if int(root.find("title_version").text) != 0:    #filter out updates
+    #    return None
     if root.find("product_code").text.startswith("WUP-M"): #filter out dlc
         return None
     # Check if English title is valid
@@ -281,7 +295,6 @@ def get_games(path):
     
 
 def get_game_times():
-        import logging
         from xml.etree import ElementTree as ET
         from os.path import exists
         game_times = {}
@@ -295,11 +308,31 @@ def get_game_times():
             title_id = str(hex(int(game.find("title_id").text)).split('x')[-1]).rjust(16,'0').upper()         #convert to hex, remove 0x, add padding
             time_played = int(game.find("time_played").text)//60
             last_time_played = int(game.find("last_played").text)
-            game_times[title_id] = [time_played, last_time_played]
+            game_times[title_id] = (time_played, last_time_played)
             #logging.debug("Title ID = {}, Time Played = {}, Last Time Played = {}".format(title_id, time_played, last_time_played))
         return game_times
-        
-        
+    
+    
+##class UpdateGameTimeThread(threading.Thread):
+##    def __init__(self, plugin):
+##        super(UpdateGameTimeThread, self).__init__()
+##
+##
+##    def run(self,plugin):
+##        from time import sleep
+##        logging.debug("Starting updating playtime.")
+##        while True:
+##            logging.debug("Updating game time...")
+##            new_game_times = get_game_times()
+##            for game_id in plugin.running_games:
+##                if game_id in new_game_times:
+##                    game_time = new_game_times[game_id]
+##                    plugin.game_times[game_id] = game_time
+##                    game_time = GameTime(game_id, game_time[0], game_time[1])
+##                    plugin.update_game_time(game_time)
+##            sleep(2)
+
+
 def main():
     create_and_run_plugin(CemuPlugin, sys.argv)
 
