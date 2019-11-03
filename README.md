@@ -21,7 +21,7 @@ i.e
 
 - might show updates as well as the base game if they are in the same folder
 - only updates playtime on startup
-- Cemu doesn't track playtime when the games are not launched from cemu's library view
+- Cemu only tracks playtime after 1.15.18 when launched via GOG, so be sure to use that or a newer version
 
 ## License
 
