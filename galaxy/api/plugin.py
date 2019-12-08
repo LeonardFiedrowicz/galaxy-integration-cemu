@@ -13,6 +13,7 @@ from galaxy.api.jsonrpc import ApplicationError, NotificationClient, Server
 from galaxy.api.types import Achievement, Authentication, FriendInfo, Game, GameTime, LocalGame, NextStep
 from galaxy.task_manager import TaskManager
 
+
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):  # pylint: disable=method-hidden
         if dataclasses.is_dataclass(o):
@@ -33,6 +34,7 @@ class Plugin:
         logging.info("Creating plugin for platform %s, version %s", platform.value, version)
         self._platform = platform
         self._version = version
+        self.TICK_TIME = 1
 
         self._features: Set[Feature] = set()
         self._active = True
@@ -169,6 +171,7 @@ class Plugin:
     def _wrap_external_method(self, handler, name: str):
         async def wrapper(*args, **kwargs):
             return await self._external_task_manager.create_task(handler(*args, **kwargs), name, False)
+
         return wrapper
 
     async def run(self):
@@ -202,7 +205,7 @@ class Plugin:
                 self.tick()
             except Exception:
                 logging.exception("Unexpected exception raised in plugin tick")
-            await asyncio.sleep(1)
+            await asyncio.sleep(self.TICK_TIME)
 
     async def _shutdown(self):
         logging.info("Shutting down")
@@ -487,7 +490,7 @@ class Plugin:
         raise NotImplementedError()
 
     async def pass_login_credentials(self, step: str, credentials: Dict[str, str], cookies: List[Dict[str, str]]) \
-        -> Union[NextStep, Authentication]:
+            -> Union[NextStep, Authentication]:
         """This method is called if we return galaxy.api.types.NextStep from authenticate or from pass_login_credentials.
         This method's parameters provide the data extracted from the web page navigation that previous NextStep finished on.
         This method should either return galaxy.api.types.Authentication if the authentication is finished

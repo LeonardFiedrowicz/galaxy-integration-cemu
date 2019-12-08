@@ -63,7 +63,7 @@ class AuthenticationHandler(BaseHTTPRequestHandler):
                     border: 0;
                     background: rgb(40, 39, 42) !important;
                 }
-                
+
                 html {
                     font-size: 12px;
                     line-height: 1.5;
@@ -94,7 +94,7 @@ class AuthenticationHandler(BaseHTTPRequestHandler):
                     border-bottom: 1px solid rgba(0, 0, 0, 0.08);
                     color: white !important;
                 }
-                
+
                 .sub-container {
                     width: 90%;
                     min-width: 200px;
@@ -105,9 +105,9 @@ class AuthenticationHandler(BaseHTTPRequestHandler):
             <div class="header">
                 Cemu Plugin Configuration
             </div>
-            
+
             <br />
-            
+
             <div class="sub-container container">
                 <form method="GET" action="/setpath">
                     <div class="field">
@@ -116,7 +116,7 @@ class AuthenticationHandler(BaseHTTPRequestHandler):
                         <input class="input" name="path" type="text" class="has-text-light" placeholder="Enter absolute ROM path">
                       </div>
                     </div>
-                    
+
                     <div class="field">
                       <label class="label has-text-light">Cemu Location</label>
                       <div class="control">
@@ -148,24 +148,6 @@ class AuthenticationServer(threading.Thread):
         self.httpd.serve_forever()
 
 
-class Interval(threading.Thread):
-    def __init__(self, func, interval, args):
-        super().__init__()
-        self.func = func
-        self.interval = interval
-        self.running = False
-        self.args = args
-
-    def run(self):
-        self.running = True
-        while self.running:
-            self.func(*self.args)
-            time.sleep(self.interval)
-
-    def cancel(self):
-        self.running = False
-
-
 class CemuPlugin(Plugin):
     def __init__(self, reader, writer, token):
         super().__init__(
@@ -175,11 +157,19 @@ class CemuPlugin(Plugin):
             writer,
             token
         )
+        self.game_running = False
+        self.running_game = None
         self.games = {}
         self.game_times = {}
         #        self.running_games = []
         self.server = AuthenticationServer()
         self.server.start()
+
+    def tick(self):
+        if self.game_running and self.running_game is not None:
+            self.game_times[self.running_game][0] += self.TICK_TIME
+            self.game_times[self.running_game][1] += self.TICK_TIME
+            self.update_game_time(GameTime(self.running_game, self.game_times[self.running_game][0] // 60, self.game_times[self.running_game][1]))
 
     def launch_cemu_game(self, game):
         def in_thread(_self, _game):
@@ -193,10 +183,11 @@ class CemuPlugin(Plugin):
 
             chdir(emulator_path)
             proc = subprocess.Popen(["./cemu.exe", "-f", "-g", game_path])
-            timer_thread = Interval(self.update_time, 60, _game)
-            timer_thread.start()
+            _self.game_running = True
+            _self.running_game = _game.game_id
             proc.wait()
-            timer_thread.cancel()
+            _self.game_running = False
+            _self.running_game = None
             _self.update_time(_game)
             logging.debug("GameTime updated, Thread finished")
 
@@ -212,7 +203,7 @@ class CemuPlugin(Plugin):
         new_game_times = get_game_times()
         game_time = new_game_times[game.game_id]
         self.game_times[game.game_id] = game_time
-        self.update_game_time(GameTime(game.game_id, game_time[0], game_time[1]))
+        self.update_game_time(GameTime(game.game_id, game_time[0] // 60, game_time[1]))
 
     def parse_games(self):
         self.games = get_games(roms_path)
@@ -284,7 +275,7 @@ class CemuPlugin(Plugin):
     async def get_game_time(self, game_id, context=None):
         if game_id in self.game_times:
             game_time = self.game_times[game_id]
-            return GameTime(game_id, game_time[0], game_time[1])
+            return GameTime(game_id, game_time[0] // 60, game_time[1])
 
 
 @dataclass
@@ -348,9 +339,9 @@ def get_game_times():
     for game in root.find("GameCache"):
         # logging.debug(str(game))
         title_id = str(hex(int(game.find("title_id").text)).split('x')[-1]).rjust(16, '0').upper()  # convert to hex, remove 0x, add padding
-        time_played = int(game.find("time_played").text) // 60
+        time_played = int(game.find("time_played").text)
         last_time_played = int(game.find("last_played").text)
-        game_times[title_id] = (time_played, last_time_played)
+        game_times[title_id] = [time_played, last_time_played]
         # logging.debug("Title ID = {}, Time Played = {}, Last Time Played = {}".format(title_id, time_played, last_time_played))
     return game_times
 
