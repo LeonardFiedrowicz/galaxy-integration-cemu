@@ -4,6 +4,7 @@ import subprocess
 import struct
 import threading
 import logging
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from os.path import join, abspath, isdir
@@ -147,6 +148,24 @@ class AuthenticationServer(threading.Thread):
         self.httpd.serve_forever()
 
 
+class Interval(threading.Thread):
+    def __init__(self, func, interval, args):
+        super().__init__()
+        self.func = func
+        self.interval = interval
+        self.running = False
+        self.args = args
+
+    def run(self):
+        self.running = True
+        while self.running:
+            self.func(*self.args)
+            time.sleep(self.interval)
+
+    def cancel(self):
+        self.running = False
+
+
 class CemuPlugin(Plugin):
     def __init__(self, reader, writer, token):
         super().__init__(
@@ -174,12 +193,11 @@ class CemuPlugin(Plugin):
 
             chdir(emulator_path)
             proc = subprocess.Popen(["./cemu.exe", "-f", "-g", game_path])
+            timer_thread = Interval(self.update_time, 60, _game)
+            timer_thread.start()
             proc.wait()
-
-            new_game_times = get_game_times()
-            game_time = new_game_times[_game.game_id]
-            _self.game_times[_game.game_id] = game_time
-            _self.update_game_time(GameTime(_game.game_id, game_time[0], game_time[1]))
+            timer_thread.cancel()
+            _self.update_time(_game)
             logging.debug("GameTime updated, Thread finished")
 
             return
@@ -189,6 +207,12 @@ class CemuPlugin(Plugin):
         thread.start()
 
         return thread
+
+    def update_time(self, game):
+        new_game_times = get_game_times()
+        game_time = new_game_times[game.game_id]
+        self.game_times[game.game_id] = game_time
+        self.update_game_time(GameTime(game.game_id, game_time[0], game_time[1]))
 
     def parse_games(self):
         self.games = get_games(roms_path)
@@ -276,8 +300,7 @@ def probe_game(path):
         root = ET.parse(path + "/meta/meta.xml").getroot()
     else:
         return None
-    # if int(root.find("title_version").text) != 0:    #filter out updates
-    #    return None
+
     if root.find("product_code").text.startswith("WUP-M"):  # filter out dlc
         return None
     # Check if English title is valid
@@ -291,7 +314,7 @@ def probe_game(path):
     return NUSGame(game_id=game_id, game_title=title, path=path, game_ver=game_ver)
 
 
-def get_files_in_dir(path):
+def get_game_folders(path):
     games_path = []
     for folder in listdir(path):
         if isdir(join(path, folder)):
@@ -300,7 +323,7 @@ def get_files_in_dir(path):
 
 
 def get_games(path):
-    games_path = get_files_in_dir(path)
+    games_path = get_game_folders(path)
     games = {}
     for game_path in games_path:
         game = probe_game(game_path)
