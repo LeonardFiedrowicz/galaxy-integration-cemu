@@ -11,16 +11,13 @@ Requires Cemu to be installed. This implementation is a modification of the [Cit
 ## Installation
 
 Download the latest release and extract it to:
-- (WINDOWS) `%localappdata%\GOG.com\Galaxy\plugins\installed\galaxy-integration-cemu`
-- (MACOS) `~/Library/Application Support/GOG.com/Galaxy/plugins/installed/galaxy-integration-cemu`
+- `%localappdata%\GOG.com\Galaxy\plugins\installed\galaxy-integration-cemu`
 
 i.e 
 `C:\Users\Leonard\AppData\Local\GOG.com\Galaxy\plugins\installed\galaxy-integration-cemu`
 
 ## Issues
 
-- might show updates as well as the base game if they are in the same folder
-- only updates playtime on startup
 - Cemu only tracks playtime after 1.15.18 when launched via GOG, so be sure to use that or a newer version
 
 ## License
