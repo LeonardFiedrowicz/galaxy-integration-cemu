@@ -10,5 +10,5 @@ emulator_path = r""
 # In case your game folders are in a subfolder of a subfolder,
 # i.e. /Wii U/e-shop title/Mario Kart 8/, set this to True (capital T)
 # If the game folder is even further down increase the level
-search_subfolders = False
+search_subfolders = True
 level = 2
