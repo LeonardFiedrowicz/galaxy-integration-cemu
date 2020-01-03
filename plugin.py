@@ -7,10 +7,9 @@ import logging
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-from os.path import join, abspath, isdir
-from os import listdir, chdir
+from os.path import join, abspath, isdir, exists, sep
+from os import listdir, chdir, walk
 from xml.etree import ElementTree as ET
-from os.path import exists
 from time import sleep
 import re
 
@@ -23,8 +22,12 @@ from galaxy.api.types import Game, LicenseInfo, LicenseType, Authentication, Loc
 from galaxy.api.consts import Platform, LocalGameState
 
 # Manually override if you dare
-roms_path = ""
-emulator_path = ""
+# roms_path = [r'E:\Emulator\ROMs\Nintendo - Wii U', ]
+# emulator_path = r'E:\Emulator\Emulatoren\Nintendo Wii U - Cemu'
+# search_subfolders = False
+# level = 2
+
+from user_settings import search_subfolders, level, roms_path, emulator_path
 
 
 class AuthenticationHandler(BaseHTTPRequestHandler):
@@ -39,10 +42,12 @@ class AuthenticationHandler(BaseHTTPRequestHandler):
             parse_result = urlparse(self.path)
             params = parse_qs(parse_result.query)
             global roms_path, emulator_path
-            roms_path = params['path'][0]
-            emulator_path = str(params['emulator_path'][0])
-            if emulator_path.endswith(".exe"):
-                emulator_path = re.sub(r'(?:.(?!\\))+$', "", emulator_path)
+            if 'path' in params:
+                roms_path = [params['path'][0]]
+            if 'emulator_path' in params:
+                emulator_path = str(params['emulator_path'][0])
+                if emulator_path.endswith(".exe"):
+                    emulator_path = re.sub(r'(?:.(?!\\))+$', "", emulator_path)
 
             self.wfile.write("<script>window.location=\"/end\";</script>".encode("utf8"))
             return
@@ -169,7 +174,8 @@ class CemuPlugin(Plugin):
         if self.game_running and self.running_game is not None:
             self.game_times[self.running_game][0] += self.TICK_TIME
             self.game_times[self.running_game][1] += self.TICK_TIME
-            self.update_game_time(GameTime(self.running_game, self.game_times[self.running_game][0] // 60, self.game_times[self.running_game][1]))
+            self.update_game_time(GameTime(self.running_game, self.game_times[self.running_game][0] // 60,
+                                           self.game_times[self.running_game][1]))
 
     def launch_cemu_game(self, game):
         def in_thread(_self, _game):
@@ -230,19 +236,19 @@ class CemuPlugin(Plugin):
         self.parse_games()
         #        thread = UpdateGameTimeThread(self)
         #        thread.start()
-        return Authentication(user_id="a_high_quality_cemu_user", user_name=roms_path)
+        return Authentication(user_id="a_high_quality_cemu_user", user_name=roms_path[0] + "...")
 
     # implement methods
     async def authenticate(self, stored_credentials=None):
         global roms_path, emulator_path
         # See if we have the path in the cache
-        if len(roms_path) == 0 and stored_credentials is not None and "roms_path" in stored_credentials:
+        if len(roms_path[0]) == 0 and stored_credentials is not None and "roms_path" in stored_credentials:
             roms_path = stored_credentials["roms_path"]
 
         if len(emulator_path) == 0 and stored_credentials is not None and "emulator_path" in stored_credentials:
             emulator_path = stored_credentials["emulator_path"]
 
-        if (len(roms_path) == 0) or (len(emulator_path) == 0):
+        if (len(roms_path[0]) == 0) or (len(emulator_path) == 0):
             params = {
                 "window_title": "Configure Cemu Plugin",
                 "window_width": 400,
@@ -301,19 +307,37 @@ def probe_game(path):
         title = root.find("longname_ja").text
     game_id = root.find("title_id").text
     game_ver = int(root.find("title_version").text)
-    # logging.debug(path + "=" + title + "(" +  game_id + ")")
     return NUSGame(game_id=game_id, game_title=title, path=path, game_ver=game_ver)
 
 
-def get_game_folders(path):
+def get_game_folders(paths):
     games_path = []
-    for folder in listdir(path):
-        if isdir(join(path, folder)):
-            games_path.append(join(path, folder))
+    for path in paths:
+        if search_subfolders:
+            for x in walklevel(path, level):
+                games_path.append(x[0])
+        else:
+            games_path.append(path)
+            for folder in listdir(path):
+                if isdir(join(path, folder)):
+                    games_path.append(join(path, folder))
     return games_path
 
 
+def walklevel(some_dir, level=1):
+    some_dir = some_dir.rstrip(sep)
+    assert isdir(some_dir)
+    num_sep = some_dir.count(sep)
+    for root, dirs, files in walk(some_dir):
+        yield root, dirs, files
+        num_sep_this = root.count(sep)
+        if num_sep + level <= num_sep_this:
+            del dirs[:]
+
+
 def get_games(path):
+    if len(path[0]) == 0:
+        return {}
     games_path = get_game_folders(path)
     games = {}
     for game_path in games_path:
@@ -324,8 +348,6 @@ def get_games(path):
                     games[game.game_id] = game
             else:
                 games[game.game_id] = game
-
-    logging.debug(games)
     return games
 
 
@@ -335,14 +357,12 @@ def get_game_times():
         root = ET.parse(emulator_path + "./settings.xml").getroot()
     else:
         return
-    # logging.debug("Extracting play time for games...")
     for game in root.find("GameCache"):
-        # logging.debug(str(game))
-        title_id = str(hex(int(game.find("title_id").text)).split('x')[-1]).rjust(16, '0').upper()  # convert to hex, remove 0x, add padding
+        # convert to hex, remove 0x, add padding
+        title_id = str(hex(int(game.find("title_id").text)).split('x')[-1]).rjust(16, '0').upper()
         time_played = int(game.find("time_played").text)
         last_time_played = int(game.find("last_played").text)
         game_times[title_id] = [time_played, last_time_played]
-        # logging.debug("Title ID = {}, Time Played = {}, Last Time Played = {}".format(title_id, time_played, last_time_played))
     return game_times
 
 
