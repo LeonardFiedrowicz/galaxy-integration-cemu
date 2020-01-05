@@ -186,9 +186,15 @@ class CemuPlugin(Plugin):
             else:
                 logging.debug("no RPX File found, exiting...")
                 return
-
             chdir(emulator_path)
+            logging.debug(
+                "Launching game: \n\t\tCemu Path: "
+                + abspath("./cemu.exe")
+                + "\n\t\tGame Path: "
+                + game_path)
+            logging.debug("Cemu.exe exists: " + str(exists("./cemu.exe")))
             proc = subprocess.Popen(["./cemu.exe", "-f", "-g", game_path])
+            logging.debug("Game started.")
             _self.game_running = True
             _self.running_game = _game.game_id
             proc.wait()
@@ -228,6 +234,8 @@ class CemuPlugin(Plugin):
         return
 
     def finish_login(self):
+        logging.debug("ROMs Path: " + str(roms_path))
+        logging.debug("Cemu Path: " + emulator_path)
         some_dict = dict()
         some_dict["roms_path"] = roms_path
         some_dict["emulator_path"] = emulator_path
